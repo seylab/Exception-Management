@@ -135,3 +135,119 @@ Projede `@ControllerAdvice` ve `@ExceptionHandler` kullanarak global exception h
 ---
 
 Bu notlar, özel exception sınıfları ile uygulamada nasıl hata fırlatabileceğinizi ve bu hataların mesajlarını nasıl oluşturabileceğinizi anlatmaktadır.
+
+
+## Exception Handling - GlobalExceptionHandler ve ApiError Yapısı
+
+Bu çalışmada, özel bir istisna (exception) yönetim mekanizması oluşturmak için `handler` paketine ait bazı sınıflar ekledik.
+Aşağıda, sınıfların nasıl çalıştığı ve uygulama genelinde istisna yönetiminin nasıl ele alındığı detaylandırılmıştır.
+
+### 1. ``GlobalExceptionHandler`` Sınıfı
+
+Bu sınıf `@ControllerAdvice` anotasyonu ile tanımlanmıştır. 
+Bu anotasyon, sınıfı uygulama genelindeki istisnaları yakalayıp yönetebilen bir sınıf haline getirir. 
+Belirtilen `@ExceptionHandler` metodu, yakalanan istisnaları ele alır.
+
+Spring uygulamalarında, hata yönetimi için merkezi bir yapı oluşturmak amacıyla 
+`GlobalExceptionHandler` sınıfı oluşturulmuştur. 
+Bu sınıf, uygulama genelinde meydana gelen özel hataları ele almak için kullanılır.
+
+```java
+package com.example.handler;
+
+@ControllerAdvice
+public class GlobalExceptionHandler {
+
+    @ExceptionHandler(value = {BaseException.class})
+    public ResponseEntity<ApiError> handleBaseException(BaseException exception, WebRequest request) {
+        return ResponseEntity.badRequest().body(createApiError(exception.getMessage(), request));
+    }
+
+    private String getHostname() {
+        try {
+            return InetAddress.getLocalHost().getHostName();
+        } catch (UnknownHostException e) {
+            System.out.println("Failed" + e.getMessage());
+        }
+        return null;
+    }
+
+    public <E> ApiError<E> createApiError(E message, WebRequest request) {
+        ApiError<E> apiError = new ApiError<>();
+        apiError.setStatus(HttpStatus.BAD_REQUEST.value());
+
+        Exception<E> exception = new Exception<>();
+        exception.setCreateTime(new Date());
+        exception.setHostName(getHostname());
+        exception.setPath(request.getDescription(false).substring(4));
+        exception.setMessage(message);
+        apiError.setException(exception);
+
+        return apiError;
+    }
+}
+```
+
+#### Açıklama
+* ``@ControllerAdvice:`` Uygulamanın genelinde hata yönetimi yapabilmek için kullanılır.
+* ``@ExceptionHandler:`` Belirtilen istisnalar için özel bir yöntem tanımlar.
+* ``handleBaseException:`` ``BaseException`` türündeki hataları ele alır ve bir ``ApiError`` döndürür.
+* ``createApiError:`` Hata bilgilerini içeren bir ``ApiError`` nesnesi oluşturur.
+
+
+### 2. ``ApiError`` Sınıfı
+``ApiError`` sınıfı, oluşan hatanın detaylarını API yanıtı olarak döndürmek için kullanılır. İçerisinde hata durumu (``status``) ve hata ile ilgili ayrıntıları barındıran ``Exception`` nesnesini tutar.
+
+````java
+package com.example.handler;
+
+@Getter
+@Setter
+public class ApiError<E> {
+
+    private Integer status;
+
+    private Exception<E> exception;
+}
+````
+#### Açıklama
+* ``ApiError:`` HTTP yanıtında döndürülecek hata bilgilerini tutar. Hata durumu ve istisna bilgilerini içerir.
+* ``status:`` HTTP hata durum kodunu içerir.
+* ``exception:`` Hata detaylarını içeren ``Exception`` nesnesini tutar.
+
+### 3. ``Exception`` Sınıfı
+
+``Exception`` sınıfı, hatanın ayrıntılarını tutar. Hangi host'ta, hangi path üzerinde, hangi zaman
+diliminde hatanın oluştuğunu ve hatanın mesajını içeren alanlara sahiptir.
+````java
+package com.example.handler;
+
+@Getter
+@Setter
+public class Exception<E> {
+
+    private String hostName;
+
+    private String path;
+
+    private Date createTime;
+
+    private E message;
+}
+````
+
+#### Açıklama
+* ``Exception:`` Hata ile ilgili ayrıntıları tutar. İsim, yol, oluşturulma zamanı ve hata mesajı gibi bilgiler içerir.
+* ``hostName:`` Hatayı oluşturan sunucunun hostname bilgisini tutar. 
+* ``path:`` Hataya neden olan URL yolunu tutar. 
+* ``createTime:`` Hatanın oluştuğu zaman dilimini içerir. 
+* ``message:`` Hataya ilişkin mesajı tutar.
+ 
+#### Genel Yapı
+  Bu exception handling yapısında:
+
+**1.** Hata meydana geldiğinde, ``GlobalExceptionHandler`` devreye girer.
+
+**2.** Hata ``BaseException`` türünde ise, hata mesajı ve detayları `ApiError` ve `Exception` sınıfları aracılığıyla yapılandırılır.
+
+**3.** API yanıtı olarak HTTP 400 Bad Request döndürülür ve hata detayı yanıt gövdesine eklenir.
