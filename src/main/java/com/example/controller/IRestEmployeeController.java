@@ -1,8 +1,9 @@
 package com.example.controller;
 
 import com.example.dto.DtoEmployee;
+import com.example.model.RootEntity;
 
 public interface IRestEmployeeController {
 
-    DtoEmployee getEmployeeById( Long id);
+    RootEntity<DtoEmployee> getEmployeeById(Long id);
 }
