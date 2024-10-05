@@ -7,7 +7,7 @@ import org.springframework.stereotype.Component;
 public class ScheduledExample {
 
     // * * * * * *
-    @Scheduled(cron = "*/5 * * * * *")
+    @Scheduled(cron = "1 1 * 1 1 *")
     public void countToTen(){
         for(int i=1; i<=10; i++){
             System.out.println(i + " ");
